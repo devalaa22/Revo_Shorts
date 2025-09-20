@@ -1,0 +1,38 @@
+{
+  "@@locale": "ar",
+  "appTitle": "مينغل مي",
+  "home": "الرئيسية",
+  "discover": "اكتشف",
+  "favorites": "المفضلة",
+  "profile": "حسابي",
+  "description": "عدد الحلقات",
+  "episodesCount": "{count} حلقات",
+  "videoSettings": "إعدادات الفيديو",
+  "playbackSpeed": "إعدادات الفيديو",
+  "rewards": "المكافآت",
+  "@episodesCount": {
+    "description": "Shows number of episodes in Arabic",
+    "placeholders": {
+      "count": {}
+   }
+  },
+  "guestName": "ضيف",
+  "guestEmail": "guest@mingleme.app",
+  "guestId": "UID وهمي",
+  "login": "تسجيل الدخول",
+  "watchHistory": "سجل المشاهدة",
+  "chargeNow": "شحن الآن",
+  "myWallet": "محفظتي",
+  "myCoins": "🪙 120",
+  "rewardsCenter": "مركز الفوائد",
+  "language": "اللغة",
+  "languageArabic": "العربية",
+  "offlineDownload": "تنزيل خارج الخط",
+  "gift": "هدية",
+  "onlineSupport": "الدعم عبر الإنترنت",
+  "settings": "الإعدادات",
+  "userIdPrefix": "ID"
+
+
+}
+

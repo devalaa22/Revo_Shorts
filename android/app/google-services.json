@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "307918412670",
+    "project_id": "revo-shorts",
+    "storage_bucket": "revo-shorts.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307918412670:android:6606bd5a8f5dc146c7712f",
+        "android_client_info": {
+          "package_name": "com.Revo.Shorts"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "307918412670-5hgu1b25dolosci5jgj0qjmsdtj3eccq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Revo.Shorts",
+            "certificate_hash": "02de90fab9bbfc840a477696a12ed206508121b3"
+          }
+        },
+        {
+          "client_id": "307918412670-sc4ekp3mu43t77gj7ifrl8g1gi6op3c3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Revo.Shorts",
+            "certificate_hash": "d2dd6efca9aaafbd5aeffc52b5c2a5eafcce4026"
+          }
+        },
+        {
+          "client_id": "307918412670-tb11fjtom4di7ar9p28h42tqp29fghcu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOXuDhVkMr_ROfrF9tHTNtCoq8N6KrM5U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "307918412670-tb11fjtom4di7ar9p28h42tqp29fghcu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

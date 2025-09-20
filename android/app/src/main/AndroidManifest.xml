@@ -1,0 +1,103 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+   <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    android:maxSdkVersion="28" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+
+    <application
+        android:label="Revo Shorts"
+        android:name="${applicationName}"
+       android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:icon="@mipmap/ic_launcher">
+       <activity
+    android:name=".MainActivity"
+    android:exported="true"
+    android:launchMode="singleTask"
+    android:theme="@style/LaunchTheme"
+    android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+    android:hardwareAccelerated="true"
+    android:windowSoftInputMode="adjustResize">
+
+  <intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    
+    <data
+        android:scheme="https"
+        android:host="h5.dramaxbox.bbs.tr"
+        android:pathPrefix="/tv" />
+</intent-filter>
+
+
+
+
+    <!-- Launcher -->
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+    </intent-filter>
+</activity>
+
+      
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+            <meta-data
+    android:name="com.google.android.gms.ads.APPLICATION_ID"
+    android:value="ca-app-pub-7681422475644826~4616037740"/> 
+        <meta-data
+            android:name="com.google.android.gms.ads.AD_MANAGER_APP"
+            android:value="true"/>
+        <meta-data
+            android:name="com.google.android.gms.ads.AD_MOB_APP"
+            android:value="true"/>
+           <uses-library android:name="org.apache.http.legacy" android:required="false" />
+
+            <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel" />
+            <receiver
+  android:name="com.dexterx.flutterlocalnotifications.ActionBroadcastReceiver"
+  android:exported="false" />
+ <meta-data
+        android:name="android.webkit.WebView.EnableSafeBrowsing"
+        android:value="false" />
+    <uses-library android:name="org.apache.http.legacy" android:required="false"/>
+
+ <meta-data
+            android:name="com.google.android.gms.wallet.api.enabled"
+            android:value="true" />
+
+
+  
+    </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+
+
+
+
+
+
+ <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+
+</manifest>

@@ -1,0 +1,22 @@
+{
+  "baseUrl": "https://dramabox1.site/",
+  "bascreatePYEeUrl": "https://dramabox1.site/",
+  "login": "https://dramabox1.site/auth_api.php",
+  "updateUserCoins": "https://dramabox1.site/update_user_coins.php",
+  "getUserCoins": "https://dramabox1.site/get_user_coins.php",
+  "unlockEpisodeWithCoins": "https://dramabox1.site/unlock_episode_with_coins.php",
+  "getCoinPackages": "https://dramabox1.site/get_coin_packages.php",
+  "createPayment": "https://dramabox1.site/dramabox/createPYE.php",
+  "checkVipStatus": "https://dramabox1.site/VIP/check_vip_status.php",
+  "updateVipStatus": "https://dramabox1.site/VIP/update_vip_status.php",
+  "getVipPackages": "https://dramabox1.site/VIP/get_vip_packages.php",
+  "getDailyGifts": "https://dramabox1.site/ads/get_Dailygifts.php",
+  "updateDailyGift": "https://dramabox1.site/ads/update_dailygift.php",
+  "getAllSeries": "https://dramabox1.site/get_series.php",
+  "getEpisodesBySeries": "https://dramabox1.site/get_episodes.php",
+  "getRecommendations": "https://dramabox1.site/get_recommendations.php",
+  "viewsLikesApi": "https://dramabox1.site/views_likes_api.php",
+  "getAdMob": "https://dramabox1.site/ads/get_admob.php",
+  "getAdWatchData": "https://dramabox1.site/ads/get_ad_watch_data.php",
+  "updateAdWatchCount": "https://dramabox1.site/ads/update_ad_watch_count.php"
+}

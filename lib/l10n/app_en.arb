@@ -1,0 +1,38 @@
+{
+  "@@locale": "en",
+  "appTitle": "Mingle Me",
+  "home": "Home",
+  "discover": "Discover",
+  "favorites": "Favorites",
+  "profile": "Profile",
+  "description": "Number of episodes",
+  "episodesCount": "{count} episodes",
+  "videoSettings": "Video Settings",
+  "playbackSpeed": "Playback Speed",
+  "rewards": "Rewards",
+ 
+  "@episodesCount": {
+    "description": "Shows number of episodes in English",
+    "placeholders": {
+      "count": {}
+    }
+  },
+    "guestName": "Guest",
+  "guestEmail": "guest@mingleme.app",
+  "guestId": "Fake UID",
+  "login": "Login",
+  "watchHistory": "Watch History",
+  "chargeNow": "Charge Now",
+  "myWallet": "My Wallet",
+  "myCoins": "🪙 120",
+  "rewardsCenter": "Rewards Center",
+  "language": "Language",
+  "languageArabic": "Arabic",
+  "offlineDownload": "Offline Download",
+  "gift": "Gift",
+  "onlineSupport": "Online Support",
+  "settings": "Settings",
+  "userIdPrefix": "ID"
+}
+
+
