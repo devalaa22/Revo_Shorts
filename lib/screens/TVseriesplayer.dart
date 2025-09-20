@@ -1518,7 +1518,7 @@ class _TVseriesplayerState extends State<TVseriesplayer>
 
   Widget buildProgressBar() {
     return Positioned(
-      bottom: 120,
+      bottom: 106,
       left: 16,
       right: 16,
       child: Column(
@@ -1596,7 +1596,7 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                       child: Container(
                         height: 10,
                         decoration: BoxDecoration(
-                          color: Colors.pinkAccent,
+                          color: const Color.fromARGB(255, 236, 73, 127),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -1817,40 +1817,40 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                           ),
 
                         //if (_showControls)
-                        Positioned(
-                          bottom: 200,
-                          right: 20,
-                          child: AppConfig.isFreeMode
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.8),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Row(
-                                    children: [
-                                      Icon(
-                                        Icons.lock_open,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'وضع مجاني',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : Container(),
-                        ),
+                     //   Positioned(
+                        ///  bottom: 200,
+                        // /// right: 20,
+                        ///  child: AppConfig.isFreeMode
+                             /// ? Container(
+                               ///   padding: const EdgeInsets.symmetric(
+                                  ///  horizontal: 12,
+                                 //   vertical: 6,
+                                  //),
+                                //  decoration: BoxDecoration(
+                                  //  color: Colors.green.withOpacity(0.8),
+                                   // borderRadius: BorderRadius.circular(20),
+                                 // ),
+                                 // child: const Row(
+                                  //  children: [
+                                  //    Icon(
+                                    //    Icons.lock_open,
+                                     //   color: Colors.white,
+                                       // size: 16,
+                                    //  ),
+                                     // SizedBox(width: 4),
+                                    ////  Text(
+                                    //    'وضع مجاني',
+                                    //    style: TextStyle(
+                                      //    color: Colors.white,
+                                    //      fontSize: 12,
+                                        //  fontWeight: FontWeight.bold,
+                                    //    ),
+                                    //  ),
+                                  //  ],
+                                 // ),
+                                //)
+                             // : Container(),
+                        //),
 
                         //if (_showControls)
                         Positioned(
@@ -1968,7 +1968,7 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                           ),
                         // if (_showControls)
                         Positioned(
-                          bottom: 260,
+                          bottom: 270,
                           left: 3,
                           child: GestureDetector(
                             onTap: _isAdShowing ? null : _toggleLike,
@@ -2020,7 +2020,7 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                         ),
                         // if (_showControls)
                         Positioned(
-                          bottom: 190,
+                          bottom: 200,
                           left: 3,
                           child: Container(
                             padding: const EdgeInsets.all(8),
@@ -2045,7 +2045,7 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                         ),
                         //if (_showControls)
                         Positioned(
-                          bottom: 135,
+                          bottom: 150,
                           left: 8,
                           child: GestureDetector(
                             onTap: _isAdShowing ? null : _showSettingsSheet,
@@ -2083,12 +2083,7 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color.fromARGB(
-                                        255,
-                                        2,
-                                        231,
-                                        13,
-                                      ),
+                                      color: const Color.fromARGB(255, 63, 63, 63),
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
                                         BoxShadow(
@@ -2122,26 +2117,8 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                               ),
                             ),
                           ),
-                        if (_isAdShowing)
-                          Container(
-                            color: Colors.black.withOpacity(0.5),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const CircularProgressIndicator(),
-                                  const SizedBox(height: 20),
-                                  const Text(
-                                    'جاري عرض الإعلان...',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                       
+                         
                       ],
                     );
                   },

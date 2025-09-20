@@ -1,76 +1,24 @@
-import 'dart:async';
-
-import 'package:dramix/main.dart';
-import 'package:flutter/material.dart';
 import 'package:dramix/screens/Home_Screenn.dart';
-//import 'package:flutter_windowmanager/flutter_windowmanager.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
-import 'package:flutter/scheduler.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback? onLoginSuccess;
   const LoginPage({super.key, this.onLoginSuccess});
 
   @override
-  // ignore: library_private_types_in_public_api
   _LoginPageState createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   final AuthService _authService = AuthService();
-  late PageController _pageController;
-  int _currentPage = 0;
-  late Timer _timer;
-
-  // قائمة بصور الخلفية
-  final List<String> _backgroundImages = [
-    'assets/images/bg1.jpg',
-    'assets/images/bg2.jpg',
-    'assets/images/bg3.jpg',
-    'assets/images/bg4.jpg',
-  ];
 
   @override
   void initState() {
     super.initState();
-    checkPackageName();
-
-    //FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
-    // تحريك اللوجو
-    _controller = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
-
-    // تحريك الخلفية
-    _pageController = PageController(initialPage: 0);
-    _startBackgroundAnimation();
-
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _checkLoginStatus();
-    });
-  }
-
-  void _startBackgroundAnimation() {
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (_currentPage < _backgroundImages.length - 1) {
-        _currentPage++;
-      } else {
-        _currentPage = 0;
-      }
-
-      if (mounted) {
-        _pageController.animateToPage(
-          _currentPage,
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
+    _checkLoginStatus();
   }
 
   Future<void> _checkLoginStatus() async {
@@ -97,12 +45,7 @@ class _LoginPageState extends State<LoginPage>
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            PageRouteBuilder(
-              pageBuilder: (_, __, ___) => const MainNavigationScreen(),
-              transitionsBuilder: (_, a, __, c) =>
-                  FadeTransition(opacity: a, child: c),
-              transitionDuration: const Duration(milliseconds: 800),
-            ),
+            MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
           );
         }
       }
@@ -122,12 +65,16 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    _pageController.dispose();
-    _timer.cancel();
-    super.dispose();
+  // دالة تسجيل الدخول بحساب فيسبوك (يمكنك تنفيذها لاحقاً)
+  // ignore: unused_element
+  Future<void> _signInWithFacebook() async {
+    // سيتم تنفيذها لاحقاً
+  }
+
+  // دالة تسجيل الدخول بحساب تيك توك (يمكنك تنفيذها لاحقاً)
+  // ignore: unused_element
+  Future<void> _signInWithTikTok() async {
+    // سيتم تنفيذها لاحقاً
   }
 
   @override
@@ -135,36 +82,18 @@ class _LoginPageState extends State<LoginPage>
     return Scaffold(
       body: Stack(
         children: [
-          // خلفية متحركة ضبابية
-          PageView.builder(
-            controller: _pageController,
-            itemCount: _backgroundImages.length,
-            itemBuilder: (context, index) {
-              return AnimatedBuilder(
-                animation: _pageController,
-                builder: (context, child) {
-                  final page = index.toDouble();
-                  final value = (_pageController.page ?? 0) - page;
-                  final opacity = 1.0 - (value.abs() * 0.5).clamp(0.0, 1.0);
-
-                  return Opacity(
-                    opacity: opacity,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        image: DecorationImage(
-                          image: AssetImage(_backgroundImages[index]),
-                          fit: BoxFit.cover,
-                          colorFilter: ColorFilter.mode(
-                            Colors.black.withOpacity(0.6),
-                            BlendMode.darken,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
+          // خلفية ثابتة للمسلسلات الآسيوية
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/asian_drama_bg.jpg'),
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(
+                  Colors.black54,
+                  BlendMode.darken,
+                ),
+              ),
+            ),
           ),
 
           SafeArea(
@@ -174,9 +103,19 @@ class _LoginPageState extends State<LoginPage>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 20),
+                    
+                    // شعار التطبيق
+                    Image.asset(
+                      'assets/images/dramix_logo.png',
+                      height: 120,
+                      width: 120,
+                    ),
+                    
+                    const SizedBox(height: 30),
+                    
                     const Text(
-                      'مرحباً بعودتك!',
+                      'سجل الدخول',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -185,62 +124,48 @@ class _LoginPageState extends State<LoginPage>
                     ),
 
                     const SizedBox(height: 10),
+                    
                     const Text(
-                      'سجل الدخول لمتابعة أفضل المسلسلات الصينية',
+                      'لمتابعة أفضل المسلسلات والافلام الآسيوية',
                       style: TextStyle(fontSize: 16, color: Colors.white70),
                       textAlign: TextAlign.center,
                     ),
 
-                    const SizedBox(height: 60),
+                    const SizedBox(height: 100),
 
-                    SizedBox(
-                      width: double.infinity,
-                      height: 60,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black.withOpacity(0.7),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                            side: const BorderSide(
-                              color: Colors.white,
-                              width: 2,
-                            ),
-                          ),
-                          elevation: 8,
-                        ),
-                        onPressed: _isLoading ? null : _signInWithGoogle,
-                        child: _isLoading
-                            ? const CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.deepPurple,
-                                ),
-                              )
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/ic_login_tips_google.png',
-                                    height: 30,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'متابعة بحساب Google',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
+                    // زر تسجيل الدخول بحساب جوجل
+                    _buildSocialLoginButton(
+                      'متابعة بحساب Google',
+                      'assets/images/ic_login_tips_google.png',
+                      _signInWithGoogle,
                     ),
+
+                    //const SizedBox(height: 20),
+
+                    // زر تسجيل الدخول بحساب فيسبوك
+                   /// _buildSocialLoginButton(
+                     /// 'متابعة بحساب Facebook',
+                    ///  'assets/images/ic_login_facebook.png',
+                     // _signInWithFacebook,
+                    //),
+
+                   // const SizedBox(height: 20),
+
+                    // زر تسجيل الدخول بحساب تيك توك
+                   /// _buildSocialLoginButton(
+                      //'متابعة بحساب TikTok',
+                     // 'assets/images/ic_login_tiktok.png',
+                     // _signInWithTikTok,
+                  //  ),
+
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
             ),
           ),
 
+          // مؤشر التحميل
           if (_isLoading)
             Container(
               color: Colors.black.withOpacity(0.7),
@@ -251,6 +176,47 @@ class _LoginPageState extends State<LoginPage>
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  // دالة مساعدة لبناء أزرار تسجيل الدخول
+  Widget _buildSocialLoginButton(String text, String iconPath, VoidCallback onPressed) {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.black.withOpacity(0.6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(
+              color: Colors.white24,
+              width: 1,
+            ),
+          ),
+          elevation: 5,
+        ),
+        onPressed: onPressed,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              iconPath,
+              height: 25,
+              width: 25,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

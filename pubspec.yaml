@@ -79,10 +79,12 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/.env
+   
     - assets/icons/
     - assets/images/cinema_background.jpg
     - assets/images/ic_login_tips_google.png
+    - assets/images/ic_login_facebook.png
+    - assets/images/ic_login_tiktok.png
     - assets/images/ic_rewards_watch_drama_reward_pending.png
     - assets/images/icon_hall_chapter.webp
     - assets/images/icon_gery_press_up.png

@@ -447,4 +447,23 @@ Future<Map<String, dynamic>> getAppMode() async {
       return {'status': 'error', 'message': e.toString()};
     }
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 }

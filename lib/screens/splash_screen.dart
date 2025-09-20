@@ -131,7 +131,7 @@ void _initDeepLinks() async {
             ),
             const SizedBox(height: 20),
             const Text(
-              "DRAMIX SHORT",
+              "Revo Shorts",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
