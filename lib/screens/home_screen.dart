@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/video_preloader.dart';
 import 'package:dramix/models/WatchHistoryService.dart';
 import 'package:dramix/models/WatchedSeries.dart';
 import 'package:dramix/screens/TVseriesplayer.dart';
@@ -32,8 +33,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController(viewportFraction: 0.85);
   int _currentPage = 0;
   Timer? _autoScrollTimer;
+  final String _layoutMode = '3-up';
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _refreshKey = GlobalKey();
+  late final VideoPreloader _videoPreloader;
 
   // Pagination variables
   int _currentPageNumber = 1;
@@ -43,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _videoPreloader = VideoPreloader();
     _loadInitialData();
     _startAutoScroll();
     NotificationService.init();
@@ -89,6 +93,25 @@ class _HomeScreenState extends State<HomeScreen> {
           isLoading = false;
           _hasMoreData = series.length > _currentPageNumber * _itemsPerPage;
         });
+        // Precache images for faster UI
+        try {
+          for (final s in featuredSeries) {
+            precacheImage(
+              CachedNetworkImageProvider(
+                _getOptimizedImageUrl(s.imageUrl, isSlider: true),
+              ),
+              context,
+            );
+          }
+          for (final s in _displayedSeries) {
+            precacheImage(
+              CachedNetworkImageProvider(_getOptimizedImageUrl(s.imageUrl)),
+              context,
+            );
+          }
+        } catch (e) {
+          debugPrint('Image precache failed: $e');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -237,6 +260,39 @@ class _HomeScreenState extends State<HomeScreen> {
       ).getEpisodesBySeries(series.id);
 
       if (!mounted) return;
+
+      // Prefetch first episode video to cache; wait briefly (max 1.2s) so player can often open from file
+      if (episodes.isNotEmpty) {
+        final firstUrl = episodes.first.videoUrl;
+        try {
+          final fileFuture = _videoPreloader.fetchToCache(firstUrl);
+          final file = await fileFuture.timeout(
+            const Duration(milliseconds: 1200),
+            onTimeout: () => null,
+          );
+          if (file != null) {
+            debugPrint(
+              'HomeScreen: prefetched video for series ${series.id} -> ${file.path}',
+            );
+          } else {
+            // didn't finish in time; let background fetch continue
+            fileFuture
+                .then((f) {
+                  debugPrint(
+                    'HomeScreen: background prefetch done for series ${series.id} -> ${f?.path}',
+                  );
+                  return f;
+                })
+                .catchError((e) {
+                  debugPrint('HomeScreen: background prefetch failed: $e');
+                  return null;
+                });
+          }
+        } catch (e) {
+          debugPrint('HomeScreen: prefetch video failed: $e');
+        }
+      }
+
       Navigator.of(context, rootNavigator: true).pop();
 
       if (episodes.isEmpty) {
@@ -251,12 +307,21 @@ class _HomeScreenState extends State<HomeScreen> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => TVseriesplayer(episodes: episodes, initialIndex: 0),
+          builder: (_) => TVseriesplayer(
+            episodes: episodes,
+            initialIndex: 0,
+            seriesId: series.id,
+            seriesTitle: series.title,
+            seriesImageUrl: series.imageUrl,
+          ),
         ),
       );
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        // Ensure loader dialog is closed and show error
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Error loading episodes')));
@@ -270,19 +335,55 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final watchHistoryService = WatchHistoryService();
 
-      final watchedSeries = WatchedSeries(
-        seriesId: series.id,
-        title: series.title,
-        imageUrl: series.imageUrl,
-        thumbnailUrl: '',
-        lastWatchedEpisode: 1,
-        totalEpisodes: series.episodeCount,
-        lastWatchedAt: DateTime.now(),
-        progress: 0.0,
-        lastPosition: Duration.zero,
+      final existing = await watchHistoryService.getWatchHistory();
+      final found = existing.firstWhere(
+        (w) => w.seriesId == series.id,
+        orElse: () => WatchedSeries(
+          seriesId: -1,
+          title: '',
+          imageUrl: '',
+          thumbnailUrl: '',
+          lastWatchedEpisode: 0,
+          totalEpisodes: 0,
+          lastWatchedAt: DateTime.fromMillisecondsSinceEpoch(0),
+          progress: 0.0,
+          lastPosition: Duration.zero,
+        ),
       );
 
-      await watchHistoryService.saveWatchedSeries(watchedSeries);
+      if (found.seriesId == -1) {
+        // no existing history - add a placeholder entry so it appears in My List
+        final watchedSeries = WatchedSeries(
+          seriesId: series.id,
+          title: series.title,
+          imageUrl: series.imageUrl,
+          thumbnailUrl: '',
+          lastWatchedEpisode: 1,
+          totalEpisodes: series.episodeCount,
+          lastWatchedAt: DateTime.now(),
+          progress: 0.0,
+          lastPosition: Duration.zero,
+        );
+        await watchHistoryService.saveWatchedSeries(watchedSeries);
+      } else {
+        // update timestamp only to bring it to top without resetting progress
+        final updated = WatchedSeries(
+          seriesId: found.seriesId,
+          title: found.title.isNotEmpty ? found.title : series.title,
+          imageUrl: found.imageUrl.isNotEmpty
+              ? found.imageUrl
+              : series.imageUrl,
+          thumbnailUrl: found.thumbnailUrl,
+          lastWatchedEpisode: found.lastWatchedEpisode,
+          totalEpisodes: found.totalEpisodes > 0
+              ? found.totalEpisodes
+              : series.episodeCount,
+          lastWatchedAt: DateTime.now(),
+          progress: found.progress,
+          lastPosition: found.lastPosition,
+        );
+        await watchHistoryService.saveWatchedSeries(updated);
+      }
     } catch (e) {
       debugPrint('Error saving to watch history: $e');
     }
@@ -374,16 +475,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  String _getOptimizedImageUrl(String originalUrl, {bool isSlider = false}) {
+  String _getOptimizedImageUrl(
+    String originalUrl, {
+    bool isSlider = false,
+    int? width,
+    int? quality,
+  }) {
+    final defaultWidth = isSlider ? 600 : 400;
+    final w = width ?? defaultWidth;
+    final q = quality ?? (isSlider ? 80 : 70);
     if (originalUrl.contains('?')) {
-      return isSlider
-          ? '$originalUrl&width=600&quality=80'
-          : '$originalUrl&width=400&quality=70';
-    } else {
-      return isSlider
-          ? '$originalUrl?width=600&quality=80'
-          : '$originalUrl?width=400&quality=70';
+      return '$originalUrl&width=$w&quality=$q';
     }
+    return '$originalUrl?width=$w&quality=$q';
+  }
+
+  int _desiredImageWidth(BuildContext context, {bool isSlider = false}) {
+    final mq = MediaQuery.of(context);
+    final dpr = mq.devicePixelRatio;
+    final screenW = mq.size.width;
+    if (isSlider) {
+      final logicalWidth = screenW * 0.85; // matches viewportFraction
+      return (logicalWidth * dpr).clamp(400, 2000).toInt();
+    }
+    final columns = _layoutMode == '3-up' ? 3 : (_layoutMode == '2-up' ? 2 : 1);
+    // approximate paddings used around grid
+    final horizontalPadding = 24.0 + (columns - 1) * 12.0;
+    final logicalWidth = (screenW - horizontalPadding) / columns;
+    return (logicalWidth * dpr).clamp(320, 1600).toInt();
   }
 
   Widget _buildFeaturedSliderItem(Series series, int index) {
@@ -577,13 +696,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: Stack(
                 children: [
+                  // Request a higher-res thumbnail for larger layouts to avoid pixelation
                   CachedNetworkImage(
-                    imageUrl: _getOptimizedImageUrl(series.imageUrl),
+                    imageUrl: _getOptimizedImageUrl(
+                      series.imageUrl,
+                      isSlider: false,
+                      width: _desiredImageWidth(context, isSlider: false),
+                      quality: 80,
+                    ),
                     width: double.infinity,
                     height: 180,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        Container(color: Colors.grey[900], height: 180),
+                    fadeInDuration: const Duration(milliseconds: 300),
+                    placeholder: (context, url) => SizedBox(
+                      height: 180,
+                      child: Shimmer.fromColors(
+                        baseColor: Colors.grey[850]!,
+                        highlightColor: Colors.grey[800]!,
+                        child: Container(color: Colors.grey[900]),
+                      ),
+                    ),
                     errorWidget: (context, url, error) => Container(
                       color: Colors.grey[900],
                       height: 180,

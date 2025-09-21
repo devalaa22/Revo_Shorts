@@ -20,6 +20,7 @@ class _MyListScreenState extends State<MyListScreen> {
   final WatchHistoryService _watchHistoryService = WatchHistoryService();
   List<WatchedSeries> _watchedSeries = [];
   bool _isLoading = true;
+  // no ad-control flags here by user request
 
   @override
   void initState() {
@@ -27,6 +28,8 @@ class _MyListScreenState extends State<MyListScreen> {
     checkPackageName();
     _loadWatchHistory();
   }
+
+  // ad control removed as requested
 
   Future<void> _loadWatchHistory() async {
     setState(() => _isLoading = true);
@@ -70,8 +73,13 @@ class _MyListScreenState extends State<MyListScreen> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              TVseriesplayer(episodes: episodes, initialIndex: initialIndex),
+          builder: (_) => TVseriesplayer(
+            episodes: episodes,
+            initialIndex: initialIndex,
+            seriesId: series.seriesId,
+            seriesTitle: series.title,
+            seriesImageUrl: series.imageUrl,
+          ),
         ),
       );
 
@@ -120,189 +128,99 @@ class _MyListScreenState extends State<MyListScreen> {
   }
 
   Widget _buildSeriesGridItem(WatchedSeries series) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey[800]!, width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _continueWatching(series),
-          borderRadius: BorderRadius.circular(16),
-          onLongPress: () => _showDeleteDialog(series.seriesId),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // صورة المسلسل
-              AspectRatio(
-                aspectRatio: 0.68,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  child: Container(
-                    color: Colors.grey[900],
-                    child: Stack(
-                      children: [
-                        // صورة الخلفية
-                        CachedNetworkImage(
-                          imageUrl: series.thumbnailUrl.isNotEmpty
-                              ? series.thumbnailUrl
-                              : series.imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[900],
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                color: Color(0xFFFF078F),
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey[900],
-                            child: const Icon(
-                              Icons.movie,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-
-                        // تدرج لوني للخلفية
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-
-                              end: Alignment.topCenter,
-
-                              colors: [
-                                Colors.black.withOpacity(0.7),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // شريط التقدم في الأسفل
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[800],
-                              borderRadius: const BorderRadius.vertical(
-                                bottom: Radius.circular(16),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: (series.progress * 100).round(),
-                                  child: Container(
-                                    decoration: const BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Color(0xFFFF078F),
-                                          Color(0xFFD6006F),
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.vertical(
-                                        bottom: Radius.circular(16),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 100 - (series.progress * 100).round(),
-                                  child: const SizedBox(),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // النسبة المئوية في الزاوية
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.8),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${(series.progress * 100).toStringAsFixed(0)}%',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+    // modern card with overlay resume button and progress
+    return Card(
+      color: const Color(0xFF141414),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 6,
+      child: InkWell(
+        onTap: () => _continueWatching(series),
+        onLongPress: () => _showDeleteDialog(series.seriesId),
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 6,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: series.thumbnailUrl.isNotEmpty
+                          ? series.thumbnailUrl
+                          : series.imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (c, u) => Container(color: Colors.grey[900]),
+                      errorWidget: (c, u, e) => Container(
+                        color: Colors.grey[900],
+                        child: const Icon(Icons.movie, color: Colors.white),
+                      ),
                     ),
-                  ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.6),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                    // (play button removed — tap card to open series)
+                    // small progress bar
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: LinearProgressIndicator(
+                        value: series.progress.clamp(0.0, 1.0),
+                        backgroundColor: Colors.black.withOpacity(0.4),
+                        valueColor: const AlwaysStoppedAnimation(
+                          Color(0xFFFF078F),
+                        ),
+                        minHeight: 4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-
-              // معلومات المسلسل
-              Padding(
+            ),
+            Expanded(
+              flex: 4,
+              child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // عنوان المسلسل
                     Text(
                       series.title,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        height: 1.3,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-
                     const SizedBox(height: 8),
-
-                    // معلومات الحلقة
                     Row(
                       children: [
-                        // رقم الحلقة
                         Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
                               Icons.movie,
                               size: 14,
                               color: Colors.grey,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 6),
                             Text(
-                              'الحلقة ${series.lastWatchedEpisode}',
+                              'حلقة ${series.lastWatchedEpisode}',
                               style: const TextStyle(
                                 color: Colors.grey,
                                 fontSize: 12,
@@ -310,10 +228,7 @@ class _MyListScreenState extends State<MyListScreen> {
                             ),
                           ],
                         ),
-
                         const Spacer(),
-
-                        // عدد الحلقات
                         Text(
                           '/${series.totalEpisodes}',
                           style: const TextStyle(
@@ -323,59 +238,40 @@ class _MyListScreenState extends State<MyListScreen> {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 8),
-
-                    // وقت التوقف و التاريخ
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        if (series.lastPosition.inSeconds > 0)
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: Color(0xFFFF078F),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'التوقف: ${_formatDuration(series.lastPosition)}',
-                                style: const TextStyle(
-                                  color: Color(0xFFFF078F),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                        if (series.lastPosition.inSeconds > 0) ...[
+                          const Icon(
+                            Icons.access_time,
+                            size: 12,
+                            color: Color(0xFFFF078F),
                           ),
-
-                        const SizedBox(height: 4),
-
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              size: 12,
-                              color: Colors.grey,
+                          const SizedBox(width: 6),
+                          Text(
+                            _formatDuration(series.lastPosition),
+                            style: const TextStyle(
+                              color: Color(0xFFFF078F),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDate(series.lastWatchedAt),
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
+                          ),
+                        ],
+                        const Spacer(),
+                        Text(
+                          _formatDate(series.lastWatchedAt),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -482,24 +378,33 @@ class _MyListScreenState extends State<MyListScreen> {
             )
           : _watchedSeries.isEmpty
           ? _buildEmptyState()
-          : RefreshIndicator(
-              onRefresh: _loadWatchHistory,
-              color: const Color(0xFFFF078F),
-              backgroundColor: Colors.black,
-              child: GridView.builder(
-                padding: const EdgeInsets.all(8),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.65, // تم تعديل النسبة
+          : Column(
+              children: [
+                // no ad banner — tapping an item opens the series directly
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadWatchHistory,
+                    color: const Color(0xFFFF078F),
+                    backgroundColor: Colors.black,
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.65, // تم تعديل النسبة
+                      ),
+                      itemCount: _watchedSeries.length,
+                      itemBuilder: (context, index) {
+                        return _buildSeriesGridItem(_watchedSeries[index]);
+                      },
+                    ),
+                  ),
                 ),
-                itemCount: _watchedSeries.length,
-                itemBuilder: (context, index) {
-                  return _buildSeriesGridItem(_watchedSeries[index]);
-                },
-              ),
+              ],
             ),
     );
   }
+
+  // ads control removed per user request
 }

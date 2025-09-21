@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dramix/services/ApiEndpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:dramix/utils/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dramix/services/api_service.dart';
@@ -44,11 +45,18 @@ class _DailyRewardsScreenState extends State<DailyRewardsScreen> {
   @override
   void initState() {
     super.initState();
-   /// FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
-    _initSharedPreferences().then((_) {
+
+    /// FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
+    _initSharedPreferences().then((_) async {
+      // Ensure server app config is loaded before any ad-related operations
+      await AppConfig.loadAppConfig();
       _initLoad();
-      _fetchRewardedAdUnitId("rewarded1");
-      _loadRewardedAd();
+      if (AppConfig.isFreeMode && !AppConfig.freeModeAdsEnabled) {
+        // Ads are disabled in free mode by server flag - do not fetch or load ads
+      } else {
+        _fetchRewardedAdUnitId("rewarded1");
+        _loadRewardedAd();
+      }
     });
   }
 
@@ -165,6 +173,9 @@ class _DailyRewardsScreenState extends State<DailyRewardsScreen> {
   }
 
   void _loadRewardedAd() {
+    // If the app is in free mode and the server disabled ads, do not load ads
+    if (AppConfig.isFreeMode && !AppConfig.freeModeAdsEnabled) return;
+
     if (_rewardedAdUnitId == null) return;
 
     RewardedAd.load(

@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 import 'package:dramix/main.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dramix/screens/LoginPage2.dart';
 import 'package:dramix/screens/TVseriesplayer.dart';
 import 'package:dramix/services/auth_service.dart';
@@ -49,7 +50,7 @@ class _RecommendationsScreenState extends State<RecommendationsScreen>
   @override
   void initState() {
     super.initState();
-   // FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
+    // FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
     _likeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -596,11 +597,15 @@ class _RecommendationsScreenState extends State<RecommendationsScreen>
                                 children: [
                                   if (_showThumbnail[index] == true &&
                                       series.imageUrl.isNotEmpty)
-                                    Image.network(
-                                      series.imageUrl,
+                                    CachedNetworkImage(
+                                      imageUrl: series.imageUrl,
                                       width: double.infinity,
                                       height: double.infinity,
                                       fit: BoxFit.cover,
+                                      placeholder: (context, url) =>
+                                          Container(color: Colors.grey[900]),
+                                      errorWidget: (context, url, error) =>
+                                          Container(color: Colors.grey[900]),
                                     ),
                                   if (isInitialized)
                                     AspectRatio(
@@ -622,11 +627,15 @@ class _RecommendationsScreenState extends State<RecommendationsScreen>
                         padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            series.imageUrl,
+                          child: CachedNetworkImage(
+                            imageUrl: series.imageUrl,
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.cover,
+                            placeholder: (context, url) =>
+                                Container(color: Colors.grey[900]),
+                            errorWidget: (context, url, error) =>
+                                Container(color: Colors.grey[900]),
                           ),
                         ),
                       ),
@@ -718,6 +727,9 @@ class _RecommendationsScreenState extends State<RecommendationsScreen>
                                 builder: (_) => TVseriesplayer(
                                   episodes: series.episodes,
                                   initialIndex: 0,
+                                  seriesId: series.id,
+                                  seriesTitle: series.title,
+                                  seriesImageUrl: series.imageUrl,
                                 ),
                               ),
                             );
@@ -800,6 +812,9 @@ class _RecommendationsScreenState extends State<RecommendationsScreen>
                                 builder: (_) => TVseriesplayer(
                                   episodes: series.episodes,
                                   initialIndex: 0,
+                                  seriesId: series.id,
+                                  seriesTitle: series.title,
+                                  seriesImageUrl: series.imageUrl,
                                 ),
                               ),
                             );

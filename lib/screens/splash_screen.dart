@@ -28,71 +28,74 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen> {
     _startSplashTimer();
   }
 
-void _initDeepLinks() async {
-  final appLinks = AppLinks();
+  void _initDeepLinks() async {
+    final appLinks = AppLinks();
 
-  // الرابط الأولي (عند فتح التطبيق من إعلان/رابط خارجي)
-  try {
-    final Uri? initialUri = await appLinks.getInitialLink();
-    if (initialUri != null) {
-      _initialUri = initialUri;
+    // الرابط الأولي (عند فتح التطبيق من إعلان/رابط خارجي)
+    try {
+      final Uri? initialUri = await appLinks.getInitialLink();
+      if (initialUri != null) {
+        _initialUri = initialUri;
+      }
+    } catch (e) {
+      debugPrint('خطأ في الحصول على الرابط الأولي: $e');
     }
-  } catch (e) {
-    debugPrint('خطأ في الحصول على الرابط الأولي: $e');
+
+    // الاستماع للروابط أثناء عمل التطبيق (background / foreground)
+    _sub = appLinks.uriLinkStream.listen(
+      (Uri? uri) {
+        if (uri != null) {
+          _initialUri = uri;
+        }
+      },
+      onError: (err) {
+        debugPrint('خطأ في الاستماع للروابط: $err');
+      },
+    );
   }
-
-  // الاستماع للروابط أثناء عمل التطبيق (background / foreground)
-  _sub = appLinks.uriLinkStream.listen((Uri? uri) {
-    if (uri != null) {
-      _initialUri = uri;
-    }
-  }, onError: (err) {
-    debugPrint('خطأ في الاستماع للروابط: $err');
-  });
-}
-
-
 
   Future<void> _startSplashTimer() async {
-  await Future.delayed(const Duration(seconds: 1));
-  if (!mounted) return;
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
-  // تحقق إذا كان التطبيق فتح من رابط خارجي
-  if (_initialUri != null) {
-    final queryParams = _initialUri!.queryParameters;
-    final seriesId = queryParams['series'];
+    // تحقق إذا كان التطبيق فتح من رابط خارجي
+    if (_initialUri != null) {
+      final queryParams = _initialUri!.queryParameters;
+      final seriesId = queryParams['series'];
 
-    if (seriesId != null) {
-      final episodes = await fetchEpisodesForSeries(seriesId);
-      if (!mounted) return;
+      if (seriesId != null) {
+        final episodes = await fetchEpisodesForSeries(seriesId);
+        if (!mounted) return;
 
-      // افتح TVseriesplayer مباشرة مع الحلقات
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TVseriesplayer(
-            episodes: episodes,
-            initialIndex: 0, // يبدأ من الحلقة الأولى
+        // افتح TVseriesplayer مباشرة مع الحلقات
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TVseriesplayer(
+              episodes: episodes,
+              initialIndex: 0, // يبدأ من الحلقة الأولى
+              seriesId: int.parse(seriesId),
+              seriesTitle: null,
+              seriesImageUrl: null,
+            ),
           ),
-        ),
-      );
-      return; // يمنع الانتقال للشاشة الرئيسية بعد Deep Link
+        );
+        return; // يمنع الانتقال للشاشة الرئيسية بعد Deep Link
+      }
     }
+
+    // إذا لم يكن هناك رابط، تابع شاشة تسجيل الدخول/الرئيسية
+    final prefs = await SharedPreferences.getInstance();
+    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            isLoggedIn ? const MainNavigationScreen() : const LoginPage(),
+      ),
+    );
   }
-
-  // إذا لم يكن هناك رابط، تابع شاشة تسجيل الدخول/الرئيسية
-  final prefs = await SharedPreferences.getInstance();
-  final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (context) =>
-          isLoggedIn ? const MainNavigationScreen() : const LoginPage(),
-    ),
-  );
-}
-
 
   Future<List<Episode>> fetchEpisodesForSeries(String seriesId) async {
     try {

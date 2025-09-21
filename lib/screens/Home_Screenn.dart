@@ -62,7 +62,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     _loadWatchlistCount();
     
     checkPackageName();
-    AppConfig.loadAppMode().then((_) {
+    AppConfig.loadAppConfig().then((_) {
       _initializeScreens();
     });
   }

@@ -53,20 +53,37 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getAppMode() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiEndpoints.baseUrl2}/app_config.php'),
+      );
 
-Future<Map<String, dynamic>> getAppMode() async {
-  try {
-    final response = await http.get(Uri.parse('${ApiEndpoints.baseUrl2}/app_config.php'));
-    
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      return {'status': 'error', 'message': 'فشل جلب وضع التطبيق'};
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        return {'status': 'error', 'message': 'فشل جلب وضع التطبيق'};
+      }
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
     }
-  } catch (e) {
-    return {'status': 'error', 'message': e.toString()};
   }
-}
+
+  /// New: get full app config (includes free_mode_ads)
+  Future<Map<String, dynamic>> getAppConfig() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiEndpoints.baseUrl2}/app_config.php'),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        return {'status': 'error', 'message': 'Failed to fetch app config'};
+      }
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
 
   Future<Map<String, dynamic>> deleteUser(int userId) async {
     try {
@@ -326,7 +343,7 @@ Future<Map<String, dynamic>> getAppMode() async {
 
   Future<Map<String, dynamic>> toggleLike(int episodeId, bool like) async {
     try {
-      return await _authenticatedRequest(
+      final result = await _authenticatedRequest(
         endpoint: ApiEndpoints.viewsLikesApi,
         method: 'POST',
         body: {
@@ -335,9 +352,11 @@ Future<Map<String, dynamic>> getAppMode() async {
           'uid': (await SharedPreferences.getInstance()).getString('uid') ?? '',
         },
       );
+      return result;
     } catch (e) {
+      // Don't rethrow - return a structured error so callers can show user-friendly messages
       debugPrint('Error in toggleLike: $e');
-      rethrow;
+      return {'status': 'error', 'message': e.toString()};
     }
   }
 
@@ -447,23 +466,4 @@ Future<Map<String, dynamic>> getAppMode() async {
       return {'status': 'error', 'message': e.toString()};
     }
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
 }

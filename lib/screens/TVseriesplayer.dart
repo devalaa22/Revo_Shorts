@@ -14,17 +14,25 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
 import 'package:video_player/video_player.dart';
+import '../services/video_preloader.dart';
+import '../models/WatchHistoryService.dart';
+import '../models/WatchedSeries.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../models/episode.dart';
 import '../models/UserModel.dart';
+// ...existing import kept above
 
 ///import 'package:flutter_windowmanager/flutter_windowmanager.dart';
 
 class TVseriesplayer extends StatefulWidget {
   final List<Episode> episodes;
   final int initialIndex;
+  // series metadata (used for watch history / resume)
+  final int seriesId;
+  final String? seriesTitle;
+  final String? seriesImageUrl;
   final Function(int)? onEpisodeChanged;
   final Function(int)? onEpisodeWatched;
 
@@ -36,6 +44,9 @@ class TVseriesplayer extends StatefulWidget {
     super.key,
     required this.episodes,
     required this.initialIndex,
+    required this.seriesId,
+    this.seriesTitle,
+    this.seriesImageUrl,
     this.onEpisodeChanged,
     this.onEpisodeWatched,
   });
@@ -71,6 +82,9 @@ class _TVseriesplayerState extends State<TVseriesplayer>
   Timer? _hideControlsTimer;
   Timer? _progressTimer;
   final Map<int, VideoPlayerController> _preloadedControllers = {};
+  late final VideoPreloader _videoPreloader;
+  final WatchHistoryService _watchHistoryService = WatchHistoryService();
+  Timer? _autosaveTimer;
   int _userCoins = 0;
   bool _isSwiping = false;
   bool _showUnlockToast = false;
@@ -83,6 +97,8 @@ class _TVseriesplayerState extends State<TVseriesplayer>
 
   bool _isDragging = false;
   double _dragPosition = 0.0;
+  // token to guard async controller initialization against rapid swaps
+  int _controllerInitToken = 0;
   String? _rewardedAdUnitId;
   final List<String> _rewardedAdUnitIds = [];
   int _currentAdUnitIndex = 0;
@@ -97,9 +113,20 @@ class _TVseriesplayerState extends State<TVseriesplayer>
     _pageController = PageController(initialPage: currentIndex);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadAllRewardedAdUnits();
+      // moved ad loading to after app config is loaded
     });
-    _loadInitialData().then((_) {
+    _loadInitialData().then((_) async {
+      // load app config (including free_mode_ads) and wait for it to be available
+      await AppConfig.loadAppConfig();
+
+      // Load ad units and rewarded ads only if server config allows ads in free mode
+      if (!(AppConfig.isFreeMode && !AppConfig.freeModeAdsEnabled)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadAllRewardedAdUnits();
+        });
+        _loadRewardedAd();
+        _fetchRewardedAdUnitId("rewarded3");
+      }
       _initializeVideoController();
       _loadEpisodeStats();
       _preloadAdjacentVideos();
@@ -108,14 +135,20 @@ class _TVseriesplayerState extends State<TVseriesplayer>
       _loadUnlockedEpisodes();
     });
 
+    _videoPreloader = VideoPreloader();
+
+    // start periodic autosave to persist resume position
+    _autosaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _persistWatchProgress();
+    });
+
     _controlsHideTime = DateTime.now();
     _likeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
-    _loadRewardedAd();
-    _fetchRewardedAdUnitId("rewarded3");
+    // These calls were moved to run after app config load above
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         systemNavigationBarColor: Colors.black,
@@ -128,6 +161,32 @@ class _TVseriesplayerState extends State<TVseriesplayer>
     currentIndex = widget.initialIndex;
     currentEpisode = widget.episodes[currentIndex];
     _currentSeriesId = currentEpisode.id.toString();
+  }
+
+  Future<void> _persistWatchProgress() async {
+    try {
+      if (_controller == null || !_controller!.value.isInitialized) return;
+      final position = _controller!.value.position;
+      final progress = _controller!.value.duration.inMilliseconds > 0
+          ? position.inMilliseconds / _controller!.value.duration.inMilliseconds
+          : 0.0;
+
+      final watched = WatchedSeries(
+        seriesId: widget.seriesId,
+        title: widget.seriesTitle ?? '',
+        imageUrl: widget.seriesImageUrl ?? '',
+        thumbnailUrl: '',
+        lastWatchedEpisode: currentEpisode.episodeNumber,
+        totalEpisodes: widget.episodes.length,
+        lastWatchedAt: DateTime.now(),
+        progress: progress.clamp(0.0, 1.0),
+        lastPosition: position,
+      );
+
+      await _watchHistoryService.saveWatchedSeries(watched);
+    } catch (e) {
+      debugPrint('Persist watch progress failed: $e');
+    }
   }
 
   // أضف هذه الدوال الجديدة
@@ -162,8 +221,12 @@ class _TVseriesplayerState extends State<TVseriesplayer>
       if (_rewardedAdUnitIds.isNotEmpty && mounted) {
         setState(() {
           _rewardedAdUnitId = _rewardedAdUnitIds.first;
-          _loadRewardedAd();
         });
+
+        // Only start loading rewarded ads if ads are allowed by server
+        if (!(AppConfig.isFreeMode && !AppConfig.freeModeAdsEnabled)) {
+          _loadRewardedAd();
+        }
 
         debugPrint('تم تحميل ${_rewardedAdUnitIds.length} شفرات إعلانية');
       }
@@ -190,6 +253,9 @@ class _TVseriesplayerState extends State<TVseriesplayer>
 
   // عدل دالة _loadRewardedAd لتستخدم النظام الجديد
   void _loadRewardedAd() {
+    // If free mode with ads disabled by server, do not attempt to load ads
+    if (AppConfig.isFreeMode && !AppConfig.freeModeAdsEnabled) return;
+
     if (_rewardedAdUnitId == null || _rewardedAdUnitId!.isEmpty) {
       // إذا لم توجد شفرات، جرب شفرة افتراضية (rewarded3) كاحتياطي
       if (_rewardedAdUnitIds.isEmpty) {
@@ -226,6 +292,9 @@ class _TVseriesplayerState extends State<TVseriesplayer>
   }
 
   Future<void> _fetchRewardedAdUnitId(String keyName) async {
+    // If free mode with ads disabled by server, do not fetch ad unit ids
+    if (AppConfig.isFreeMode && !AppConfig.freeModeAdsEnabled) return;
+
     try {
       final response = await http.get(
         Uri.parse('${ApiEndpoints.getAdMob}?key=$keyName'),
@@ -234,8 +303,12 @@ class _TVseriesplayerState extends State<TVseriesplayer>
         final data = json.decode(response.body);
         setState(() {
           _rewardedAdUnitId = data['ad_unit_id'].toString();
-          _loadRewardedAd();
         });
+
+        // Only try to load ad if server allows ads
+        if (!(AppConfig.isFreeMode && !AppConfig.freeModeAdsEnabled)) {
+          _loadRewardedAd();
+        }
       }
     } catch (e) {
       debugPrint('Error fetching ad unit ID: $e');
@@ -311,32 +384,57 @@ class _TVseriesplayerState extends State<TVseriesplayer>
     }
   }
 
-  void _preloadAdjacentVideos() {
-    final preloadIndices = [
+  Future<void> _preloadAdjacentVideos() async {
+    // Keep a small window of preloaded controllers: previous, next 1-3
+    final preloadRange = [
+      currentIndex - 1,
       currentIndex + 1,
       currentIndex + 2,
       currentIndex + 3,
     ];
 
-    for (final index in preloadIndices) {
+    for (final index in preloadRange) {
       if (index >= 0 &&
           index < widget.episodes.length &&
           !_preloadedControllers.containsKey(index)) {
         final episode = widget.episodes[index];
-        final controller = VideoPlayerController.networkUrl(
-          Uri.parse(episode.videoUrl),
-        );
+        try {
+          debugPrint(
+            'TVseriesplayer: preload start index=$index url=${episode.videoUrl}',
+          );
+          final controller = await _videoPreloader.createController(
+            episode.videoUrl,
+          );
+          debugPrint(
+            'TVseriesplayer: preload created controller for index=$index',
+          );
+          _preloadedControllers[index] = controller;
+          // controller already initialized by preloader (best-effort). keep default looping=false
+          controller.setLooping(false);
+        } catch (e) {
+          // ignore preload failures but log for diagnostics
+          debugPrint('TVseriesplayer: Preload failed for index $index: $e');
+        }
+      }
+    }
 
-        _preloadedControllers[index] = controller;
-        controller
-            .initialize()
-            .then((_) {
-              controller.setLooping(false);
-            })
-            .catchError((e) {
-              _preloadedControllers.remove(index);
-              controller.dispose();
-            });
+    // Dispose controllers that are far from the current index to save memory
+    _disposeFarControllers();
+  }
+
+  void _disposeFarControllers() {
+    final keys = _preloadedControllers.keys.toList();
+    for (final k in keys) {
+      if (k < currentIndex - 2 || k > currentIndex + 4) {
+        try {
+          final c = _preloadedControllers.remove(k);
+          if (c != null) {
+            c.removeListener(_videoListener);
+            c.dispose();
+          }
+        } catch (e) {
+          debugPrint('Error disposing controller $k: $e');
+        }
       }
     }
   }
@@ -402,7 +500,10 @@ class _TVseriesplayerState extends State<TVseriesplayer>
         !_isLiked,
       );
 
-      if (response['status'] == 'success' && mounted) {
+      // Normalize possible shapes: our ApiService returns {'status': 'success' ...} or {'status':'error','message':...}
+      final status = response['status']?.toString().toLowerCase();
+
+      if (status == 'success' && mounted) {
         setState(() {
           _isLiked = !_isLiked;
           _likeCount = response['likes_count'] ?? _likeCount;
@@ -410,11 +511,27 @@ class _TVseriesplayerState extends State<TVseriesplayer>
           currentEpisode.isLiked = _isLiked;
         });
         _likeAnimationController.forward(from: 0);
+      } else {
+        // Not success - present friendly message and log details for debugging
+        final msg =
+            response['message']?.toString() ??
+            'فشل تحديث الاعجاب. حاول مرة أخرى.';
+        debugPrint('toggleLike failed response: $response');
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
+        }
       }
     } catch (e) {
+      debugPrint('Exception in _toggleLike: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update likes: ${e.toString()}')),
+          SnackBar(
+            content: Text(
+              'حدث خطأ أثناء تحديث الإعجاب. تأكد من اتصال الإنترنت.',
+            ),
+          ),
         );
       }
     } finally {
@@ -464,9 +581,14 @@ class _TVseriesplayerState extends State<TVseriesplayer>
   }
 
   Future<void> _initializeVideoController() async {
+    // Increment token to mark a fresh init attempt. Any earlier async init should ignore its result.
+    final int initToken = ++_controllerInitToken;
+
     if (_controller != null) {
       _controller!.removeListener(_videoListener);
-      await _controller!.dispose();
+      try {
+        await _controller!.dispose();
+      } catch (_) {}
     }
 
     setState(() {
@@ -474,16 +596,42 @@ class _TVseriesplayerState extends State<TVseriesplayer>
     });
 
     if (_preloadedControllers.containsKey(currentIndex)) {
+      debugPrint(
+        'TVseriesplayer: using preloaded controller for currentIndex=$currentIndex',
+      );
       _controller = _preloadedControllers[currentIndex];
       _preloadedControllers.remove(currentIndex);
     } else {
-      _controller = VideoPlayerController.networkUrl(
-        Uri.parse(currentEpisode.videoUrl),
-      );
+      // create controller using preloader (will return file-based controller if cached)
+      try {
+        debugPrint(
+          'TVseriesplayer: creating controller via preloader for url=${currentEpisode.videoUrl}',
+        );
+        _controller = await _videoPreloader.createController(
+          currentEpisode.videoUrl,
+        );
+      } catch (e) {
+        debugPrint('Failed to create controller via preloader: $e');
+        _controller = VideoPlayerController.networkUrl(
+          Uri.parse(currentEpisode.videoUrl),
+        );
+      }
     }
 
     try {
+      // initialize; if a newer init started meanwhile, abort applying this controller
       await _controller!.initialize();
+      debugPrint(
+        'TVseriesplayer: initialize completed for token=$initToken currentToken=$_controllerInitToken',
+      );
+      if (initToken != _controllerInitToken) {
+        // A newer init started: discard this controller
+        try {
+          _controller?.removeListener(_videoListener);
+          await _controller?.dispose();
+        } catch (_) {}
+        return;
+      }
       _controller!
         ..setLooping(false)
         ..play();
@@ -501,6 +649,7 @@ class _TVseriesplayerState extends State<TVseriesplayer>
       _sendViewToServer();
       _startProgressTimer();
       _preloadAdjacentVideos();
+      debugPrint('TVseriesplayer: controller applied for index=$currentIndex');
     } catch (e) {
       debugPrint('Error initializing video controller: $e');
       if (mounted) {
@@ -551,6 +700,12 @@ class _TVseriesplayerState extends State<TVseriesplayer>
 
   void _handleEpisodeEnd() async {
     if (AppConfig.isFreeMode) {
+      // If free mode and ads are disabled via server flag, skip ad and navigate directly
+      if (!AppConfig.freeModeAdsEnabled) {
+        await _navigateToEpisode(currentIndex + 1);
+        return;
+      }
+      // When ads are enabled in free mode, show ad to unlock next episode
       _watchAdToUnlockEpisode(widget.episodes[currentIndex + 1]);
       return;
     }
@@ -593,11 +748,11 @@ class _TVseriesplayerState extends State<TVseriesplayer>
 
   Future<void> _navigateToEpisode(int index) async {
     if (!mounted || index < 0 || index >= widget.episodes.length) return;
+    // mark a new swap/initialization attempt; this invalidates previous async inits
+    final int navInitToken = ++_controllerInitToken;
 
     setState(() {
       _isSwiping = true;
-      currentIndex = index;
-      currentEpisode = widget.episodes[index];
     });
 
     await _pageController.animateToPage(
@@ -606,13 +761,101 @@ class _TVseriesplayerState extends State<TVseriesplayer>
       curve: Curves.easeInOut,
     );
 
-    if (_controller != null) {
-      _controller!.removeListener(_videoListener);
-      await _controller!.dispose();
-    }
+    // If we have a preloaded controller for the target index, use it to swap instantly.
+    final preloaded = _preloadedControllers.remove(index);
+    if (preloaded != null) {
+      try {
+        final swapStart = DateTime.now();
+        // Pause and detach listener from old controller but don't dispose until new one is ready
+        final old = _controller;
+        if (old != null) {
+          old.removeListener(_videoListener);
+          old.pause();
+        }
 
-    await _initializeVideoController();
-    await _loadEpisodeStats();
+        _controller = preloaded;
+        _controller!.addListener(_videoListener);
+        if (_controller!.value.isInitialized) {
+          _controller!
+            ..setLooping(false)
+            ..play();
+        } else {
+          debugPrint(
+            'TVseriesplayer: initializing preloaded controller for index=$index',
+          );
+          await _controller!.initialize();
+          // if a newer navigate/init started, abort applying this controller
+          if (navInitToken != _controllerInitToken) {
+            try {
+              _controller?.removeListener(_videoListener);
+              await _controller?.dispose();
+            } catch (_) {}
+            return;
+          }
+          _controller!
+            ..setLooping(false)
+            ..play();
+        }
+
+        setState(() {
+          currentIndex = index;
+          currentEpisode = widget.episodes[index];
+          isPlaying = true;
+          _showPlayIcon = false;
+          _showLoadingIndicator = false;
+        });
+
+        final swapEnd = DateTime.now();
+        debugPrint(
+          'TVseriesplayer: swapped to index $index using preloaded controller in ${swapEnd.difference(swapStart).inMilliseconds}ms (navToken=$navInitToken currentToken=$_controllerInitToken)',
+        );
+
+        // Now dispose the old controller if it exists
+        if (old != null) {
+          try {
+            old.removeListener(_videoListener);
+            await old.dispose();
+          } catch (e) {
+            debugPrint('Error disposing old controller: $e');
+          }
+        }
+
+        _sendViewToServer();
+        _startProgressTimer();
+        _preloadAdjacentVideos();
+        _loadEpisodeStats();
+        // save watch progress after switching episodes
+        _persistWatchProgress();
+      } catch (e) {
+        debugPrint('Error switching to preloaded controller: $e');
+        // fallback to normal init
+        if (_controller != null) {
+          try {
+            _controller!.removeListener(_videoListener);
+            await _controller!.dispose();
+          } catch (_) {}
+        }
+        currentIndex = index;
+        currentEpisode = widget.episodes[index];
+        await _initializeVideoController();
+        await _loadEpisodeStats();
+      }
+    } else {
+      // No preloaded controller, fallback to original flow
+      setState(() {
+        currentIndex = index;
+        currentEpisode = widget.episodes[index];
+        _showLoadingIndicator = true;
+      });
+
+      if (_controller != null) {
+        _controller!.removeListener(_videoListener);
+        await _controller!.dispose();
+      }
+
+      await _initializeVideoController();
+      await _loadEpisodeStats();
+    }
 
     setState(() {
       _isSwiping = false;
@@ -749,7 +992,16 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                       color: Colors.red,
                       onTap: () {
                         Navigator.pop(context);
-                        _watchAdToUnlockEpisode(episode);
+                        // If ads are disabled for free mode on server, skip the ad and unlock/navigate directly
+                        if (AppConfig.isFreeMode &&
+                            !AppConfig.freeModeAdsEnabled) {
+                          final nextIndex = widget.episodes.indexOf(episode);
+                          if (nextIndex != -1) {
+                            _navigateToEpisode(nextIndex);
+                          }
+                        } else {
+                          _watchAdToUnlockEpisode(episode);
+                        }
                       },
                     )
                   : Container(
@@ -1064,6 +1316,8 @@ class _TVseriesplayerState extends State<TVseriesplayer>
             });
             await _initializeVideoController();
             _loadEpisodeStats();
+            // save after initializing
+            _persistWatchProgress();
           }
         }
       } else {
@@ -1366,10 +1620,28 @@ class _TVseriesplayerState extends State<TVseriesplayer>
 
                           return GestureDetector(
                             onTap: () {
-                              // إذا كان الوضع مجاني، اعرض إعلان ثم انتقل
+                              // إذا كان الوضع مجاني
                               if (AppConfig.isFreeMode) {
-                                _watchAdToUnlockEpisode(episode);
-                                Navigator.pop(context);
+                                if (!AppConfig.freeModeAdsEnabled) {
+                                  // تخطي الإعلانات وفتح الحلقة مباشرة
+                                  _navigateToEpisode(
+                                    widget.episodes.indexOf(episode),
+                                  );
+                                  Navigator.pop(context);
+                                } else {
+                                  if (AppConfig.isFreeMode &&
+                                      !AppConfig.freeModeAdsEnabled) {
+                                    final nextIndex = widget.episodes.indexOf(
+                                      episode,
+                                    );
+                                    if (nextIndex != -1) {
+                                      _navigateToEpisode(nextIndex);
+                                    }
+                                  } else {
+                                    _watchAdToUnlockEpisode(episode);
+                                  }
+                                  Navigator.pop(context);
+                                }
                               } else if (isLocked) {
                                 Navigator.pop(context);
                                 _showPaymentDialog(episode);
@@ -1698,12 +1970,30 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                   scrollDirection: Axis.vertical,
                   itemCount: widget.episodes.length,
                   onPageChanged: (index) async {
+                    // If app is in free mode, decide based on server flag whether to show ad or navigate directly
                     if (AppConfig.isFreeMode &&
                         !_isAdShowing &&
                         !_shouldBlockNavigation) {
-                      _watchAdToUnlockEpisode(widget.episodes[index]);
-                      return;
+                      if (!AppConfig.freeModeAdsEnabled) {
+                        // Ads disabled in free mode -> navigate directly
+                        setState(() {
+                          currentIndex = index;
+                          currentEpisode = widget.episodes[index];
+                          _controller?.removeListener(_videoListener);
+                          _controller?.dispose();
+                          _showLoadingIndicator = true;
+                        });
+                        await _initializeVideoController();
+                        _loadEpisodeStats();
+                        widget.onEpisodeChanged?.call(index);
+                        return;
+                      } else {
+                        // Ads enabled in free mode -> show ad to unlock
+                        _watchAdToUnlockEpisode(widget.episodes[index]);
+                        return;
+                      }
                     }
+
                     if (!mounted ||
                         index == currentIndex ||
                         index >= widget.episodes.length ||
@@ -1717,7 +2007,23 @@ class _TVseriesplayerState extends State<TVseriesplayer>
 
                     final nextEpisode = widget.episodes[index];
 
+                    // Handle paid/unlocked logic first (same as before)
                     if (AppConfig.isFreeMode) {
+                      // If the admin disabled ads in free mode, skip ad flow and navigate directly
+                      if (!AppConfig.freeModeAdsEnabled) {
+                        setState(() {
+                          currentIndex = index;
+                          currentEpisode = nextEpisode;
+                          _controller?.removeListener(_videoListener);
+                          _controller?.dispose();
+                          _showLoadingIndicator = true;
+                        });
+                        await _initializeVideoController();
+                        _loadEpisodeStats();
+                        widget.onEpisodeChanged?.call(index);
+                        return;
+                      }
+
                       setState(() {
                         currentIndex = index;
                         currentEpisode = nextEpisode;
@@ -1731,27 +2037,14 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                       return;
                     }
 
-                    // إذا كانت الحلقة مدفوعة وغير مفتوحة
                     if (_currentUser?.isVip != true &&
                         _isEpisodePaid(nextEpisode) &&
                         !_isEpisodeUnlocked(nextEpisode)) {
-                      // إذا كان لدى المستخدم رصيد كافي، اخصم تلقائياً بدون ما يظهر الديالوق
                       if (_userCoins >= currentEpisode.priceCoins) {
                         await _unlockWithCoins(nextEpisode);
-                        // بعد فتح الحلقة، انتقل إليها
-                        setState(() {
-                          currentIndex = index;
-                          currentEpisode = nextEpisode;
-                          _controller?.removeListener(_videoListener);
-                          _controller?.dispose();
-                          _showLoadingIndicator = true;
-                        });
-                        await _initializeVideoController();
-                        _loadEpisodeStats();
-                        widget.onEpisodeChanged?.call(index);
-                      }
-                      // إذا لم يكن لديه رصيد، اعرض الديالوق
-                      else {
+                        // switch to episode using navigate helper which prefers preloaded controllers
+                        await _navigateToEpisode(index);
+                      } else {
                         _pageController.jumpToPage(currentIndex);
                         if (!_isEpisodeLockedDialogShown) {
                           _showPaymentDialog(nextEpisode);
@@ -1760,7 +2053,66 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                       return;
                     }
 
-                    // إذا كانت الحلقة مجانية أو مفتوحة، انتقل normally
+                    // If we have a preloaded controller we can swap immediately
+                    final preloaded = _preloadedControllers.remove(index);
+                    if (preloaded != null) {
+                      final swapStart = DateTime.now();
+                      final old = _controller;
+                      if (old != null) {
+                        old.removeListener(_videoListener);
+                        old.pause();
+                      }
+
+                      _controller = preloaded;
+                      _controller!.addListener(_videoListener);
+                      if (_controller!.value.isInitialized) {
+                        _controller!
+                          ..setLooping(false)
+                          ..play();
+                      } else {
+                        setState(() => _showLoadingIndicator = true);
+                        try {
+                          await _controller!.initialize();
+                          _controller!
+                            ..setLooping(false)
+                            ..play();
+                        } catch (e) {
+                          debugPrint('Failed to init preloaded controller: $e');
+                        }
+                        setState(() => _showLoadingIndicator = false);
+                      }
+
+                      setState(() {
+                        currentIndex = index;
+                        currentEpisode = nextEpisode;
+                        isPlaying = true;
+                        _showPlayIcon = false;
+                      });
+
+                      final swapEnd = DateTime.now();
+                      debugPrint(
+                        'TVseriesplayer: onPageChanged swapped to $index with preloaded controller in ${swapEnd.difference(swapStart).inMilliseconds}ms',
+                      );
+
+                      // dispose old after new is running
+                      if (old != null) {
+                        try {
+                          old.removeListener(_videoListener);
+                          await old.dispose();
+                        } catch (e) {
+                          debugPrint('Error disposing old controller: $e');
+                        }
+                      }
+
+                      _sendViewToServer();
+                      _startProgressTimer();
+                      _preloadAdjacentVideos();
+                      _loadEpisodeStats();
+                      widget.onEpisodeChanged?.call(index);
+                      return;
+                    }
+
+                    // fallback to normal behavior
                     setState(() {
                       currentIndex = index;
                       currentEpisode = nextEpisode;
@@ -1772,35 +2124,67 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                     _loadEpisodeStats();
                     widget.onEpisodeChanged?.call(index);
                   },
+
                   itemBuilder: (context, index) {
-                    return Stack(
-                      children: [
-                        if (_controller != null &&
-                            _controller!.value.isInitialized)
-                          Positioned.fill(
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 40),
-                              child: ClipRRect(
-                                borderRadius: const BorderRadius.only(
-                                  bottomLeft: Radius.circular(25),
-                                  bottomRight: Radius.circular(25),
-                                ),
-                                child: AspectRatio(
-                                  aspectRatio: _controller!.value.aspectRatio,
-                                  child: VideoPlayer(_controller!),
-                                ),
+                    // Precompute video area widget to avoid placing try/catch inside children list
+                    Widget videoArea;
+                    try {
+                      if (_controller != null &&
+                          _controller!.value.isInitialized) {
+                        videoArea = Positioned.fill(
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 40),
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(25),
+                                bottomRight: Radius.circular(25),
+                              ),
+                              child: AspectRatio(
+                                aspectRatio: _controller!.value.aspectRatio,
+                                child: VideoPlayer(_controller!),
                               ),
                             ),
-                          )
-                        else
-                          Center(
-                            child: Lottie.asset(
-                              'assets/animations/load-house.json', // الأنيميشن الأخضر
-                              width: 5050,
-                              height: 100,
-                              fit: BoxFit.contain,
+                          ),
+                        );
+                      } else {
+                        videoArea = Center(
+                          child: Lottie.asset(
+                            'assets/animations/load-house.json', // الأنيميشن الأخضر
+                            width: 5050,
+                            height: 100,
+                            fit: BoxFit.contain,
+                          ),
+                        );
+                      }
+                    } catch (e, st) {
+                      debugPrint('Video build exception: $e\n$st');
+                      videoArea = Positioned.fill(
+                        child: Container(
+                          color: Colors.black,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(
+                                  Icons.error,
+                                  color: Colors.white,
+                                  size: 40,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'حدث خطأ أثناء تشغيل الفيديو. حاول مرة أخرى.',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ],
                             ),
                           ),
+                        ),
+                      );
+                    }
+
+                    return Stack(
+                      children: [
+                        videoArea,
 
                         if (_controller != null &&
                             _controller!.value.isInitialized)
@@ -1817,39 +2201,39 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                           ),
 
                         //if (_showControls)
-                     //   Positioned(
+                        //   Positioned(
                         ///  bottom: 200,
                         // /// right: 20,
                         ///  child: AppConfig.isFreeMode
-                             /// ? Container(
-                               ///   padding: const EdgeInsets.symmetric(
-                                  ///  horizontal: 12,
-                                 //   vertical: 6,
-                                  //),
-                                //  decoration: BoxDecoration(
-                                  //  color: Colors.green.withOpacity(0.8),
-                                   // borderRadius: BorderRadius.circular(20),
-                                 // ),
-                                 // child: const Row(
-                                  //  children: [
-                                  //    Icon(
-                                    //    Icons.lock_open,
-                                     //   color: Colors.white,
-                                       // size: 16,
-                                    //  ),
-                                     // SizedBox(width: 4),
-                                    ////  Text(
-                                    //    'وضع مجاني',
-                                    //    style: TextStyle(
-                                      //    color: Colors.white,
-                                    //      fontSize: 12,
-                                        //  fontWeight: FontWeight.bold,
-                                    //    ),
-                                    //  ),
-                                  //  ],
-                                 // ),
-                                //)
-                             // : Container(),
+                        /// ? Container(
+                        ///   padding: const EdgeInsets.symmetric(
+                        ///  horizontal: 12,
+                        //   vertical: 6,
+                        //),
+                        //  decoration: BoxDecoration(
+                        //  color: Colors.green.withOpacity(0.8),
+                        // borderRadius: BorderRadius.circular(20),
+                        // ),
+                        // child: const Row(
+                        //  children: [
+                        //    Icon(
+                        //    Icons.lock_open,
+                        //   color: Colors.white,
+                        // size: 16,
+                        //  ),
+                        // SizedBox(width: 4),
+                        ////  Text(
+                        //    'وضع مجاني',
+                        //    style: TextStyle(
+                        //    color: Colors.white,
+                        //      fontSize: 12,
+                        //  fontWeight: FontWeight.bold,
+                        //    ),
+                        //  ),
+                        //  ],
+                        // ),
+                        //)
+                        // : Container(),
                         //),
 
                         //if (_showControls)
@@ -2083,7 +2467,12 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color.fromARGB(255, 63, 63, 63),
+                                      color: const Color.fromARGB(
+                                        255,
+                                        63,
+                                        63,
+                                        63,
+                                      ),
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
                                         BoxShadow(
@@ -2117,8 +2506,6 @@ class _TVseriesplayerState extends State<TVseriesplayer>
                               ),
                             ),
                           ),
-                       
-                         
                       ],
                     );
                   },
@@ -2140,6 +2527,9 @@ class _TVseriesplayerState extends State<TVseriesplayer>
     _likeAnimationController.dispose();
     _hideControlsTimer?.cancel();
     _progressTimer?.cancel();
+    _autosaveTimer?.cancel();
+    // persist final state
+    _persistWatchProgress();
     WakelockPlus.disable();
     _toastTimer?.cancel();
 

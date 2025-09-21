@@ -37,11 +37,32 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-    await Firebase.initializeApp();
+  await Firebase.initializeApp();
 
   // تهيئة الإشعارات بعد Firebase
   await NotificationService.init();
-   
+
+  // Provide a friendly error screen for uncaught errors (prevents red error screen)
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    // Log the error for debugging
+    debugPrint('Unhandled Flutter error: ${details.exceptionAsString()}');
+    return MaterialApp(
+      home: Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'حدث خطأ غير متوقع. الرجاء إعادة المحاولة لاحقاً. \n${details.exceptionAsString()}',
+              style: const TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  };
+
   // 🔹 تشغيل التطبيق مباشرة مع عرض Splash Screen
   runApp(
     MultiProvider(
@@ -58,12 +79,9 @@ void main() async {
 Future<void> _initializeApp() async {
   try {
     await initAdMobAppId("app_id");
-    await AppConfig.loadAppMode();
+    await AppConfig.loadAppConfig();
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    
-    
 
     await FirebaseMessaging.instance.subscribeToTopic('all');
     await MobileAds.instance.initialize();

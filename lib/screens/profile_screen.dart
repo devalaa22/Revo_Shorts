@@ -7,6 +7,7 @@ import 'package:dramix/screens/VipPackagesScreen.dart';
 import 'package:dramix/screens/DailyrewardsScreen.dart';
 import 'package:dramix/utils/app_config.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 ///import 'package:flutter_windowmanager/flutter_windowmanager.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -446,10 +447,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             child: ClipOval(
               child: _currentUser?.photoUrl != null
-                  ? Image.network(
-                      _currentUser!.photoUrl!,
+                  ? CachedNetworkImage(
+                      imageUrl: _currentUser!.photoUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
+                      placeholder: (context, url) =>
+                          const Icon(Icons.person, color: Colors.white),
+                      errorWidget: (context, url, error) =>
                           const Icon(Icons.person, color: Colors.white),
                     )
                   : const Icon(Icons.person, size: 30, color: Colors.white),
@@ -1063,7 +1066,7 @@ class SettingsScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
-        ), 
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
